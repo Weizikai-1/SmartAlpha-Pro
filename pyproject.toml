@@ -1,0 +1,101 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smartalpha-pro"
+version = "2.0.0"
+description = "量化因子选股系统 — 表达式引擎 + 截面回测 + 因子评估"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "SmartAlpha Team" }
+]
+keywords = ["quantitative-finance", "factor-investing", "backtesting", "a-share"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business :: Financial :: Investment",
+]
+
+dependencies = [
+    "pandas>=1.5.0",
+    "numpy>=1.23.0",
+    "scipy>=1.10.0",
+    "tushare>=1.4.0",
+    "akshare>=1.12.0",
+    "python-dotenv>=1.0.0",
+    "langgraph>=0.2.0",
+    "langchain-core>=0.3.0",
+    "chromadb>=0.5.0",
+    "openai>=1.50.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-benchmark>=4.0.0",
+    "ruff>=0.3.0",
+    "black>=23.0.0",
+    "bandit>=1.7.0",
+]
+
+demo = [
+    "tushare>=1.4.0",
+    "akshare>=1.12.0",
+    "python-dotenv>=1.0.0",
+    "streamlit>=1.40.0",
+    "plotly>=5.24.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/smartalpha/smartalpha-pro"
+Repository = "https://github.com/smartalpha/smartalpha-pro"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["smartalpha*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = [
+    "--tb=short",
+    "-v",
+    "--strict-markers",
+]
+markers = [
+    "slow: 慢速测试",
+    "benchmark: 性能基准测试",
+]
+
+[tool.coverage.run]
+source = ["smartalpha"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]

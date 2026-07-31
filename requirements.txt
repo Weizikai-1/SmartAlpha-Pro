@@ -1,0 +1,25 @@
+# SmartAlpha Pro 智能选股系统 - 依赖清单
+# Python >= 3.10
+
+# 核心依赖
+pandas>=1.5.0
+numpy>=1.23.0
+scipy>=1.10.0
+
+# ML (可选，pip install smartalpha-pro[ml])
+lightgbm>=4.0.0
+
+# 数据获取 (可选)
+tushare>=1.4.0
+akshare>=1.12.0
+python-dotenv>=1.0.0
+
+# 测试
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-benchmark>=4.0.0
+
+# 开发工具
+ruff>=0.3.0
+black>=23.0.0
+bandit>=1.7.0

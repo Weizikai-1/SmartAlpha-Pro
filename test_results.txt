@@ -1,0 +1,86 @@
+SmartAlpha Pro 测试报告
+============================================================
+测试时间: 2026-07-31 12:19:38
+
+## 快速测试 (8模块)
+============================================================
+通过: 299  失败: 0  错误: 0
+通过率: 100.0%
+
+### tests/test_lexer.py (exit=0)
+rorHandling::test_case_insensitive_keywords PASSED [ 97%]
+tests/test_lexer.py::TestErrorHandling::test_duplicate_lexer_state PASSED [ 98%]
+tests/test_lexer.py::TestErrorHandling::test_long_identifier PASSED      [100%]
+
+============================= 78 passed in 0.09s ==============================
+
+### tests/test_executor.py (exit=0)
+e. Ensure you extract a single element from your array before performing this operation. (Deprecated NumPy 1.25.)
+    assert float(result) == 20.0
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 42 passed, 4 warnings in 0.47s ========================
+
+### tests/test_functions.py (exit=0)
+py::TestEdgeCases::test_filter_no_bounds PASSED     [ 97%]
+tests/test_functions.py::TestEdgeCases::test_filter_only_lower PASSED    [ 98%]
+tests/test_functions.py::TestEdgeCases::test_filter_only_upper PASSED    [100%]
+
+============================= 68 passed in 0.46s ==============================
+
+### tests/test_factor.py (exit=0)
+select_factors_pipeline PASSED [ 91%]
+tests/test_factor.py::TestFactorSelector::test_select_factors_no_forward_returns PASSED [ 95%]
+tests/test_factor.py::TestFactorSelector::test_filter_insufficient_data PASSED [100%]
+
+============================= 24 passed in 0.65s ==============================
+
+### tests/test_model.py (exit=0)
+dTrainer::test_metrics_valid PASSED   [ 81%]
+tests/test_model.py::TestWalkForwardTrainer::test_feature_importance_averaged PASSED [ 90%]
+tests/test_model.py::TestWalkForwardTrainer::test_insufficient_data PASSED [100%]
+
+============================= 11 passed in 1.84s ==============================
+
+### tests/test_backtest.py (exit=0)
+y::TestBacktestFull::test_top_n_one PASSED          [ 91%]
+tests/test_backtest.py::TestBacktestFull::test_empty_data PASSED         [ 95%]
+tests/test_backtest.py::TestBacktestFull::test_single_day PASSED         [100%]
+
+============================= 23 passed in 0.75s ==============================
+
+### tests/test_cache.py (exit=0)
+TestEdgeCases::test_max_size_property PASSED        [ 94%]
+tests/test_cache.py::TestEdgeCases::test_ttl_property PASSED             [ 97%]
+tests/test_cache.py::TestEdgeCases::test_cache_stats_dataclass PASSED    [100%]
+
+============================= 36 passed in 0.72s ==============================
+
+### tests/test_integration.py (exit=0)
+ne::test_constants_consistent PASSED [ 88%]
+tests/test_integration.py::TestFullPipeline::test_invalid_expression_handled PASSED [ 94%]
+tests/test_integration.py::TestFullPipeline::test_edge_case_nan_input PASSED [100%]
+
+============================= 17 passed in 1.04s ==============================
+
+
+============================================================
+## 端到端回测
+============================================================
+数据: 10只股票, 623个交易日 (2024-01 ~ 2026-07)
+因子: 表达式引擎实时计算9个因子
+策略: 日频调仓Top20, 因子综合得分选股, A股真实费率
+
+回测指标:
+  年化收益:   7.10%
+  年化波动:   18.80%
+  夏普比率:   0.38
+  最大回撤:   -23.81%
+  胜率:       48.48%
+  终值净值:   1.1849
+
+说明: 10只股票且仅基于技术因子选股，夏普0.38属合理水平。
+      扩大股票池+引入基本面因子+行业中性化后可显著提升。
+
+============================================================
+总计: 299 passed, 0 failed

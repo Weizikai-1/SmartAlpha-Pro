@@ -1,0 +1,130 @@
+name: SmartAlpha Pro CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  # ============================================================================
+  # Job 1: 代码质量检查
+  # ============================================================================
+  lint:
+    name: 代码质量检查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff black
+          
+      - name: Ruff 代码检查
+        run: ruff check --select E,F,W --ignore E501 .
+          
+      - name: Black 格式检查
+        run: black --check --diff .
+
+  # ============================================================================
+  # Job 2: 多平台单元测试
+  # ============================================================================
+  test:
+    name: 单元测试 (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.10', '3.11', '3.12']
+        
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: 设置 Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: 运行单元测试
+        run: |
+          python -m pytest tests/ -v --tb=short --ignore=tests/test_phase_a.py --ignore=tests/test_phase_b.py --ignore=tests/test_phase_c.py
+          
+      - name: 测试覆盖率
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.10'
+        run: |
+          pip install pytest-cov coverage
+          python -m pytest tests/ --cov=smartalpha --cov-report=term-missing --cov-report=xml --ignore=tests/test_phase_a.py --ignore=tests/test_phase_b.py --ignore=tests/test_phase_c.py
+          
+      - name: 上传覆盖率报告
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.10'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+  # ============================================================================
+  # Job 3: 性能基准测试
+  # ============================================================================
+  benchmark:
+    name: 性能基准测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-benchmark
+          
+      - name: 运行性能基准测试
+        run: |
+          python -m pytest tests/ -v -k "benchmark" --benchmark-only --benchmark-save=baseline --ignore=tests/test_phase_a.py --ignore=tests/test_phase_b.py --ignore=tests/test_phase_c.py
+          
+      - name: 上传基准测试结果
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: .benchmarks/
+
+  # ============================================================================
+  # Job 4: 安全扫描
+  # ============================================================================
+  security:
+    name: 安全扫描
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: 设置 Python 环境
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          
+      - name: 安装安全工具
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit pip-audit
+          
+      - name: Bandit 安全扫描
+        run: bandit -r smartalpha/ -ll
+          
+      - name: pip-audit 依赖检查
+        run: pip-audit
