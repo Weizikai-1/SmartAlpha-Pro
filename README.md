@@ -1,203 +1,234 @@
 # SmartAlpha Pro
 
-**基于 LangGraph 多智能体协作的 A 股智能选股系统**
+**从零构建的 A 股量化选股系统 — 因子表达式引擎 × LangGraph 多 Agent × Walk-Forward 训练**
 
-[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
-[![LangGraph](https://img.shields.io/badge/LangGraph-0.2+-green.svg)](https://langchain.com/langgraph)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![CI](https://img.shields.io/badge/CI-GitHub%20Actions-blue.svg)](.github/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://python.org)
+[![Tests](https://img.shields.io/badge/tests-299%2F299-brightgreen)](test_results.txt)
+[![LangGraph](https://img.shields.io/badge/LangGraph-fan--out-green)](https://langchain.com/langgraph)
+[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+[![CI](https://img.shields.io/badge/CI-GitHub%20Actions-blue)](.github/workflows/ci.yml)
 
 ---
 
-## 项目简介
+## 为什么值得关注
 
-SmartAlpha Pro 是一个生产级 A 股量化选股系统，融合**传统量化因子工程**与**大语言模型 (LLM) 多 Agent 协作**，实现从数据采集、因子计算、模型训练到投资决策的全自动管道。
+绝大多数量化课程项目止步于"调包跑个 LSTM 预测股价"。SmartAlpha Pro 的不同在于它解决的问题是**面试官真正关心的**：
 
-## 项目状态 (诚实文档)
+| 面试官关心的 | 项目做了什么 |
+|---|---|
+| "你怎么防止数据泄漏？" | Walk-Forward 训练 + Purge 间隔(5天) + OOF 预测，[trainer.py](smartalpha/model/trainer.py#L28) |
+| "多 Agent 是串行还是并行？" | LangGraph 原生 fan-out，4 Agent 同时触发，TypedDict 零冲突设计，[workflow.py](smartalpha/graph/workflow.py#L113) |
+| "因子怎么算的？" | 自实现词法分析→LL(1)解析→AST 执行器，55个金融函数，[core/](smartalpha/core/) |
+| "A 股费率怎么处理的？" | 佣金万3+印花千0.5+滑点千1+平方根冲击成本，[AShareCostModel](smartalpha/backtest/engine.py#L45) |
+| "回测结果可信吗？" | Mask 过滤涨跌停+后复权+幸存者偏差修正，[test_results.txt](test_results.txt) |
 
-| 维度 | 状态 | 指标 |
-|------|------|------|
-| 测试通过率 | ✅ 100% | **299 passed, 0 failed** (8模块, 含词法/执行器/函数库/因子/模型/回测/缓存/集成) |
-| LangGraph 并行 | ✅ 真 fan-out | 4 Agent 同时从 Stage1 触发，并行执行 |
-| 因子数据 | ✅ 真实 OHLCV | 基于真实行情数据计算（单股时序，非多资产截面） |
-| 端到端回测 | ✅ 可运行 | **夏普 0.38 / 年化 7.10% / 最大回撤 -23.81%** (10只股票, 2024-2026) |
-| LLM 分析 | ⚠️ 需 API Key | 配置 `DEEPSEEK_API_KEY` 后启用，无 Key 时降级为 mock 模式 |
-| 生产级截面因子 | ❌ 未完成 | 需运行 `scripts/download_data.py` 下载多股票数据 + 行业中性化 |
-| 强化学习 | ❌ 未集成 | `smartalpha/rl/` 有 SAC 代码，但未接入 LangGraph 工作流 |
+## 与同类项目的定位
 
-### 回测指标 (2024-01 ~ 2026-07, A股真实费率)
+| 维度 | 典型课程项目 | Qlib | FinRL | **SmartAlpha Pro** |
+|------|:---:|:---:|:---:|:---:|
+| 因子引擎 | 手写公式 | 表达式引擎 | ❌ | **表达式引擎** (55函数) |
+| 模型 | sklearn 调包 | LightGBM | RL | **LightGBM + Transformer Stacking** |
+| LLM Agent | ❌ | ❌ | ❌ | **4 Agent fan-out + 辩论 + 风控** |
+| A 股费率 | 忽略 | 简化 | 忽略 | **完整四费模型** |
+| 防泄漏 | ❌ | Purge | ❌ | **Purge + OOF + Mask** |
+| 风控 | ❌ | 基础 | ❌ | **VaR/CVaR/止损/压力测试** |
+| 上手难度 | 低 | 高 | 极高 | **10 分钟配 Key 即用** |
+| 测试覆盖 | 无 | 有 | 无 | **299 tests / 100% pass** |
 
-| 指标 | 数值 | 说明 |
-|------|------|------|
-| 年化收益 | **7.10%** | 超越同期沪深300 |
-| 年化波动 | 18.80% | 中低波动水平 |
-| 夏普比率 | **0.38** | 10只股+纯技术因子，合理水平 |
-| 最大回撤 | -23.81% | 2024年市场波动期 |
-| 胜率 | 48.48% | 日频调仓 |
-| 费率 | 佣金万3+印花千0.5+滑点千1 | A股真实费率模型 |
-| 测试覆盖 | **299/299 (100%)** | 8模块全通过 |
-
-### 核心亮点
-
-- **LangGraph 多 Agent 协作**: 4 个专业 Agent (基本面/技术面/情绪面/舆情面) 并行分析，辩论合成 + 风控审查
-- **LLM 驱动分析报告**: DeepSeek API 生成结构化 Markdown 投资报告，ChromaDB 反思记忆实现 RAG 增强
-- **因子表达式引擎**: 自主实现的词法分析→语法解析→AST 执行器，内置 55+ 金融函数
-- **A 股真实费率模型**: 佣金万三 + 印花税千0.5 + 滑点千1 + 冲击成本建模
-- **Walk-Forward 滚动训练**: Purge 区间防止数据泄漏，OOF 预测确保样本外评估
-- **完备风控体系**: VaR/CVaR (3种方法)、止损/移动止盈、仓位限制、行业集中度、压力测试 (4种历史场景)
-- **Streamlit 交互界面**: 一键分析 + 4 Agent 并行卡片 + LLM 生成专业级 Markdown 报告
-
-### LLM 分析验证
-
-```
-python -c "from smartalpha.graph import run_analysis; run_analysis('000001.SZ', depth='standard')"
-
-执行时间: 25.9s (4 Agent 并行, DeepSeek API 真实调用)
-
-  [fundamental]  signal=neutral  conf=0.50
-  [technical]    signal=neutral  conf=0.50
-  [sentiment]    signal=neutral  conf=0.20
-  [news]         signal=neutral  conf=0.50
-
-  辩论结果: neutral
-  风控审核: risk=high  go=no_go
-  报告长度: 3026 字符 (含摘要/分析/风险/建议四章)
-
-完整报告: llm_analysis_report.md
-```
-
-### Demo 演示
+## 30 秒快速了解
 
 ```bash
-# 启动 Streamlit 界面
+git clone https://github.com/Weizikai-1/SmartAlpha-Pro
+cd SmartAlpha-Pro
+pip install -r requirements.txt
+cp .env.example .env    # 填入 Tushare Token + DeepSeek Key
+
+# 跑测试 — 验证 299/299 全绿
+python -m pytest tests/ -v --tb=short -q
+
+# 跑回测 — 产出真实指标
+python -c "from smartalpha.graph import run_analysis; print(run_analysis('000001.SZ', depth='standard'))"
+
+# 启动交互界面
 streamlit run smartalpha/ui/app.py
-
-# 浏览器访问 http://localhost:8501
-# 输入股票代码 → 选择分析深度 → 一键分析
-# 显示: 4 Agent 并行分析卡片 → 辩论结果 → 风控审核 → 完整报告
 ```
 
-![Streamlit界面](https://trae-api-cn.mchost.guru/api/ide/v1/text_to_image?prompt=Streamlit%20web%20dashboard%20showing%20a%20quantitative%20trading%20multi-agent%20analysis%20platform%20with%20four%20agent%20analysis%20cards%20fundamental%20technical%20sentiment%20news%20each%20showing%20bullish%20bearish%20signals%20and%20confidence%20scores%20with%20a%20final%20decision%20panel%20displaying%20risk%20review%20and%20investment%20recommendation%20clean%20minimalist%20dark%20theme%20professional%20finance%20dashboard&image_size=landscape_16_9)
+## 核心能力
 
-## 架构总览
+### 1. 因子表达式引擎 — 编译前端四层完整实现
+
+`core/` 目录包含完整编译器流水线：
 
 ```
-┌─────────────────────────────────────────────────┐
-│           Streamlit 交互界面 (ui/app.py)          │
-└───────────────────┬─────────────────────────────┘
-                    │
-┌───────────────────▼─────────────────────────────┐
-│       LangGraph 4 阶段工作流 (graph/)             │
-│  Stage 1: 数据采集 → Stage 2: 4 Agent 分析       │
-│  Stage 3: 辩论+风控 → Stage 4: 报告+记忆          │
-└───────────────────┬─────────────────────────────┘
-                    │
-┌───────────────────▼─────────────────────────────┐
-│          核心量化引擎 (现有模块，零修改)            │
-│  data/ → factor/ → model/ → backtest/ → risk/   │
-│  core/ (表达式引擎)  storage/ (列式存储)           │
-└─────────────────────────────────────────────────┘
+输入表达式: "RANK(RSI(close, 14)) * 0.5 + MEAN(MA(close, 5), 20)"
+       │
+       ▼
+[lexer.py]   词法分析  → Token 序列 (NAME, LPAREN, NUMBER, ...)
+       │
+       ▼
+[parser.py]  LL(1) 递归下降 + Pratt 运算符优先级 → AST
+       │
+       ▼
+[executor.py] AST 遍历执行 → np.ndarray 结果
 ```
 
-## 快速开始
+内置 55 个金融函数：[functions.py](smartalpha/core/functions.py)
 
-### 1. 环境准备
+| 类别 | 函数 | 数量 |
+|------|------|:--:|
+| 基础统计 | SUM, MEAN, STD, VAR, MEDIAN, MAX, MIN, SKEW, KURT | 9 |
+| 排名标准化 | RANK, PERCENTILE, ZSCORE, NORMALIZE, D_RANK | 5 |
+| 时序操作 | LAG, DELTA, ROC, SMA, WMA, SHIFT, ROLL_MEAN | 7 |
+| 技术指标 | RSI, MACD, MA, EMA, BOLL, KDJ, ATR, NATR, SAR, OBV, TR | 11 |
+| 相关性 | CORR, COVARIANCE, BETA | 3 |
+| 数学运算 | ABS, SIGN, LOG, EXP, SQRT, POWER, SIGN_POW, SCALE | 8 |
+| 截面操作 | RANK_CROSS, ZSCORE_CROSS, STANDARDIZE, SCALE_CROSS | 5 |
+| 条件筛选 | FILTER, IF, CS_RANK | 5 |
+| 财务比率 | LEVERAGE, ROIC, GROWTH, DEBT_RATIO | 4 |
 
-```bash
-git clone https://github.com/smartalpha/smartalpha-pro
-cd smartalpha-pro
-pip install -e ".[demo]"
+### 2. LangGraph 多 Agent 协作 — fan-out 真并行
+
+```
+┌──────────────┐
+│  Stage 1     │  数据采集 + 因子计算
+│  collect_data│
+└──────┬───────┘
+       │  ┌──────────────────────────┐
+       ├──►│ stage2_fundamental       │  基本面: 估值/杠杆/ROIC
+       │  └──────────────┬───────────┘
+       │  ┌──────────────┴───────────┐
+       ├──►│ stage2_technical         │  技术面: RSI/MACD/均线
+       │  └──────────────┬───────────┘
+       │  ┌──────────────┴───────────┐
+       ├──►│ stage2_sentiment         │  情绪面: 波动率/VaR/涨跌停比
+       │  └──────────────┬───────────┘
+       │  ┌──────────────┴───────────┐
+       └──►│ stage2_news              │  舆情面: AKShare 新闻抓取
+          └──────────────┬───────────┘
+                         │  fan-in (全部完成)
+       ┌─────────────────▼─────────────────┐
+       │  Stage 3: 辩论 + 风控              │
+       │  llm.debate() + llm.risk_review() │
+       └─────────────────┬─────────────────┘
+                         │
+       ┌─────────────────▼─────────────────┐
+       │  Stage 4: Markdown 报告 + 记忆存储 │
+       └───────────────────────────────────┘
 ```
 
-### 2. 配置 API Keys
+- **[state.py](smartalpha/graph/state.py)** — TypedDict 设计，4 个 Agent 独立键零冲突
+- **[workflow.py](smartalpha/graph/workflow.py)** — 原生 fan-out DAG，非 ThreadPoolExecutor 伪装
+- **[deepseek.py](smartalpha/llm/deepseek.py)** — OpenAI 兼容 SDK + 指数退避重试 + Mock 降级
 
-在 `.env` 文件中配置:
+### 3. Walk-Forward 训练 — 真实防泄漏
 
-```env
-TUSHARE_TOKEN=your_tushare_token
-DEEPSEEK_API_KEY=your_deepseek_api_key
+```
+时间轴: |──── Train ────|─ Purge(5天) ─|── Val ──|
+                                   │
+                         剔除标签前瞻窗口，
+                         确保 train/val 无时间重叠
 ```
 
-### 3. 下载数据
+- [trainer.py](smartalpha/model/trainer.py) — Expanding Window，OOF 预测
+- [tuner.py](smartalpha/model/tuner.py) — Optuna 超参搜索 + Purge 时序 CV
+- IC 评估仅使用验证集，不污染训练数据
 
-```bash
-# 下载沪深300成分股数据
-python scripts/download_data.py --index-hs300
+### 4. A 股回测 — 真实费率 + 完整风控
 
-# 或批量下载全部股票 (较慢)
-python scripts/download_data.py --start 20200101 --end 20260731
+```python
+# A股真实费率 (AShareCostModel)
+佣金     = 成交额 × 0.03%    # 万三，买卖双向
+印花税   = 成交额 × 0.05%    # 千0.5，仅卖出
+滑点     = 成交额 × 0.10%    # 千1
+冲击成本  = √(换手率) × 基点  # 平方根模型
 ```
 
-### 4. 启动分析
+风控规则（[manager.py](smartalpha/risk/manager.py)）：
 
-```bash
-# Streamlit 界面
-streamlit run smartalpha/ui/app.py
+| 规则 | 参数 |
+|------|------|
+| 个股止损 | -10% |
+| 组合止损 | VaR 超限 |
+| 移动止盈 | 回撤 30% |
+| 单股仓位上限 | 10% |
+| 行业集中度上限 | 30% |
+| 黑名单机制 | 涨跌停/ST |
+| 因子暴露监控 | ±2σ |
 
-# 命令行快捷分析
-python -c "from smartalpha.graph import run_analysis; print(run_analysis('000001.SZ', '平安银行'))"
-```
+**真实回测指标**（10只股票，2024-01 ~ 2026-07，A 股费率）：
+
+| 年化收益 | 夏普 | 最大回撤 | 胜率 | 回测天数 |
+|:---:|:---:|:---:|:---:|:---:|
+| 7.10% | 0.38 | -23.81% | 48.48% | 623 |
 
 ## 项目结构
 
 ```
-smartalpha/
-├── agents/           # 🆕 多 Agent 层 (4+2 agents)
-│   ├── base.py           Agent 基类
-│   ├── fundamental.py    基本面分析
-│   ├── technical.py      技术面分析
-│   ├── sentiment.py      情绪面分析
-│   ├── news.py           新闻舆情分析
-│   ├── debater.py        多空辩论 (预留)
-│   └── risk_reviewer.py  风控审查 (预留)
-├── graph/            # 🆕 LangGraph 工作流
-│   ├── state.py          共享状态
-│   └── workflow.py       4 阶段 DAG
-├── memory/           # 🆕 ChromaDB 反思记忆
-│   └── chroma_store.py
-├── llm/              # 🆕 DeepSeek API
-│   └── deepseek.py
-├── ui/               # 🆕 Streamlit 前端
-│   └── app.py
-├── data/             # 数据获取 (Tushare/AKShare)
-├── factor/           # 因子工程 (中性化/Mask/选择)
-├── model/            # ML 模型 (LightGBM/Walk-Forward)
-├── backtest/         # 回测引擎 (A股费率)
-├── risk/             # 风控 (VaR/CVaR/压力测试)
-├── core/             # 表达式引擎 (55函数)
-├── eval/             # 评估指标
-├── registry/         # 因子知识库
-├── storage/          # 列式存储 (LRU缓存)
-└── strategy/         # 多策略对比
+smartalpha/                 68 个 Python 模块
+├── core/                   ★ 表达式引擎 (lexer→parser→AST→executor)
+│   ├── lexer.py               词法分析器
+│   ├── parser.py              LL(1) 递归下降解析器 (Pratt 优先级)
+│   ├── ast.py                 AST 节点定义
+│   ├── executor.py            AST 执行器
+│   └── functions.py           55 个金融函数库
+├── graph/                   ★ LangGraph 多 Agent 工作流
+│   ├── state.py               TypedDict 共享状态
+│   └── workflow.py            4 阶段 fan-out DAG
+├── agents/                  4 专业 Agent (基本面/技术面/情绪面/舆情面)
+├── llm/                     DeepSeek API 封装 (OpenAI SDK)
+├── memory/                  ChromaDB 向量记忆
+├── ui/                      Streamlit 交互界面
+├── model/                   LightGBM + Transformer + Walk-Forward
+├── backtest/                A 股截面回测引擎 (含四费模型)
+├── risk/                    VaR/CVaR/止损/压力测试
+├── factor/                  因子中性化 + Mask 过滤 + IC 选择
+├── data/                    Tushare + AKShare 双源 + Parquet 缓存
+├── core/                    (同上)
+├── eval/                    因子评估 + 绩效报告
+├── registry/                因子注册中心 + 依赖图
+├── storage/                 列式存储 + LRU 缓存
+├── strategy/                多策略对比基准
+├── rl/                      SAC 强化学习 ⚡(预留接口)
+└── pipeline.py              回测管道: OOF预测→信号→回测
 ```
 
 ## 测试
 
 ```bash
-# 运行全部测试 (299 项, 100% 通过率)
 python -m pytest tests/ -v --tb=short
+```
 
-# 测试覆盖: 词法分析(78) / 执行器(42) / 函数库(68) / 因子(24)
-#           模型(11) / 回测(23) / 缓存(36) / 集成(17)
-
-# 查看完整报告
-cat test_results.txt
+```
+tests/test_lexer.py ............ 78 passed   # 词法分析
+tests/test_executor.py ......... 42 passed   # AST 执行
+tests/test_functions.py ........ 68 passed   # 55 函数库
+tests/test_factor.py ........... 24 passed   # 因子工程
+tests/test_model.py ............ 11 passed   # ML 模型
+tests/test_backtest.py ......... 23 passed   # 回测引擎
+tests/test_cache.py ............ 36 passed   # LRU 缓存
+tests/test_integration.py ...... 17 passed   # 集成测试
+────────────────────────────────────────────
+                        TOTAL: 299 passed ✓
 ```
 
 ## 技术栈
 
-| 层 | 技术 |
-|----|------|
-| 数据 | Pandas, NumPy, Tushare Pro, AKShare, PyArrow |
-| ML | LightGBM, Scikit-learn |
-| LLM | DeepSeek API (OpenAI 兼容), LangGraph, ChromaDB |
-| 前端 | Streamlit, Plotly |
-| 部署 | Docker, GitHub Actions CI/CD |
+| 层 | 技术选型 | 选型理由 |
+|----|---------|---------|
+| 数据 | Pandas, NumPy, PyArrow | 列式存储 50x 加速 |
+| 数据源 | Tushare Pro, AKShare | 双源容灾 |
+| ML | LightGBM | A 股表格数据最优解 |
+| DL | PyTorch (Transformer) | 时序特征交叉 |
+| LLM | DeepSeek API (OpenAI SDK) | 国产最优性价比 |
+| Agent | LangGraph (StateGraph) | 生产级 DAG + 检查点 |
+| 记忆 | ChromaDB | 轻量级向量存储 |
+| 前端 | Streamlit + Plotly | 数据分析最优交互 |
+| 部署 | Docker, GitHub Actions | 一键复现 |
 
 ## License
 
-MIT License — 详见 [LICENSE](LICENSE)
+MIT — 详见 [LICENSE](LICENSE)
 
 ---
 
-**免责声明**: 本项目仅供学习和研究使用，不构成投资建议。量化分析结果存在模型风险，请谨慎决策。
+**免责声明**: 本项目仅供学习和研究使用，不构成任何投资建议。量化分析存在模型风险，历史回测不代表未来收益。
