@@ -16,7 +16,8 @@ st.caption("LangGraph 多智能体协作 · A 股智能分析")
 with st.sidebar:
     st.header("分析参数")
     ticker = st.text_input("股票代码", "000001.SZ", help="Tushare 格式")
-    trade_date = st.date_input("分析日期").strftime("%Y%m%d") if st.date_input("分析日期") else "20240701"
+    trade_date_raw = st.date_input("分析日期")
+    trade_date = trade_date_raw.strftime("%Y%m%d") if trade_date_raw else "20240701"
     depth = st.selectbox("分析深度", ["quick", "standard", "deep"],
                          help="quick=2Agent | standard=4Agent | deep=4Agent+大截面")
     analyze_btn = st.button("开始分析", type="primary", use_container_width=True)

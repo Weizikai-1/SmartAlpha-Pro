@@ -75,6 +75,9 @@ run_llm_analysis.py
 run_tests.py
 test_output.txt
 test_a_result.txt
+test_results.txt
+demo_script.md
+git_push.py
 
 # ── 日志 ──
 *.log
