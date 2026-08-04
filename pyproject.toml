@@ -55,8 +55,8 @@ demo = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/smartalpha/smartalpha-pro"
-Repository = "https://github.com/smartalpha/smartalpha-pro"
+Homepage = "https://github.com/Weizikai-1/SmartAlpha-Pro"
+Repository = "https://github.com/Weizikai-1/SmartAlpha-Pro"
 
 [tool.setuptools.packages.find]
 where = ["."]
