@@ -186,7 +186,7 @@ if stock_ic_values:
     print(f"   平均 IC (时序): {mean_ic:.4f} ({len(stock_ic_values)} 只)")
     ok(f"IC 计算正常 (均值 {mean_ic:.4f})")
 else:
-    warn("IC 计算数据不足")
+    print("   [WARN] IC 计算数据不足")
 
 
 # ============================================================================
@@ -209,7 +209,7 @@ if industry_map:
     print(f"   行业数: {n_industries}, 股票数: {len(industry_map)}")
     ok(f"行业分类就绪 ({n_industries} 个行业)")
 else:
-    warn("行业分类不可用，使用代码前缀粗分类")
+    print("   [WARN] 行业分类不可用，使用代码前缀粗分类")
     # 构建粗分类
     for s in pw.columns:
         industry_map[s] = IndustryFetcher.coarse_classify(s)
@@ -278,9 +278,9 @@ try:
         print(f"   日VaR95: {m.get('var_95', 0):.2%}")
         ok("截面回测执行成功")
     else:
-        warn("回测指标为空")
+        print("   [WARN] 回测指标为空")
 except Exception as e:
-    warn(f"回测失败: {e}")
+    print(f"   [WARN] 回测失败: {e}")
 
 
 # ============================================================================
@@ -310,9 +310,9 @@ try:
         print(f"   夏普(有风控): {result_risk.metrics.get('sharpe', 0):.2f}")
         ok("完整风控链执行成功")
     else:
-        warn("风控回测指标为空")
+        print("   [WARN] 风控回测指标为空")
 except Exception as e:
-    warn(f"风控回测失败: {e}")
+    print(f"   [WARN] 风控回测失败: {e}")
 
 
 # ============================================================================
@@ -344,9 +344,9 @@ if len(market_ret) > 60:
         assert 0.2 < beta_valid.mean() < 3.0, f"Beta 异常: {beta_valid.mean():.4f}"
         ok(f"市场 Beta 计算正确 ({beta_valid.mean():.2f})")
     else:
-        warn("Beta 无有效值")
+        print("   [WARN] Beta 无有效值")
 else:
-    warn("市场指数数据不足，跳过 Beta 计算")
+    print("   [WARN] 市场指数数据不足，跳过 Beta 计算")
 
 
 # ============================================================================

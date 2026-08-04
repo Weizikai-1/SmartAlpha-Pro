@@ -125,19 +125,29 @@ class LightGBMPredictor:
         dtrain = lgb.Dataset(X_tr, label=y_tr)
         dvalid = lgb.Dataset(X_ev, label=y_ev, reference=dtrain)
 
-        # 训练
+        # 训练 (lightgbm 4.x + Python 3.13 兼容: 避免 early_stopping 的 CVBooster bug)
+        evals_result = {}
+        num_boost_round = self.params.get("n_estimators", 200)
         self._model = lgb.train(
             self.params,
             dtrain,
             valid_sets=[dvalid],
             valid_names=["valid"],
-            num_boost_round=self.params.get("n_estimators", 200),
-            callbacks=[lgb.early_stopping(self.early_stopping_rounds),
+            num_boost_round=num_boost_round,
+            callbacks=[lgb.record_evaluation(evals_result),
                        lgb.log_evaluation(0)],
         )
 
+        # 最佳迭代 (从 evals_result 手动计算)
+        if evals_result and "valid" in evals_result and evals_result["valid"]:
+            valid_metric = list(evals_result["valid"].values())[0]
+            best_iteration = int(np.argmin(valid_metric)) + 1
+            best_iteration = max(1, min(best_iteration, len(valid_metric)))
+        else:
+            best_iteration = num_boost_round
+
         # 预测验证集
-        preds = self._model.predict(X_val, num_iteration=self._model.best_iteration)
+        preds = self._model.predict(X_val, num_iteration=best_iteration)
 
         # 特征重要性 (gain)
         importance = pd.Series(
@@ -146,8 +156,8 @@ class LightGBMPredictor:
         ).sort_values(ascending=False)
 
         # 训练指标
-        train_preds = self._model.predict(X_tr, num_iteration=self._model.best_iteration)
-        ev_preds = self._model.predict(X_ev, num_iteration=self._model.best_iteration)
+        train_preds = self._model.predict(X_tr, num_iteration=best_iteration)
+        ev_preds = self._model.predict(X_ev, num_iteration=best_iteration)
 
         return ModelResult(
             predictions=pd.Series(preds, index=X_val.index),
@@ -155,7 +165,7 @@ class LightGBMPredictor:
             train_scores={
                 "train_rmse": np.sqrt(np.mean((y_tr.values - train_preds) ** 2)),
                 "valid_rmse": np.sqrt(np.mean((y_ev.values - ev_preds) ** 2)),
-                "best_iteration": self._model.best_iteration,
+                "best_iteration": best_iteration,
                 "train_samples": len(X_tr),
                 "valid_samples": len(X_val),
             },

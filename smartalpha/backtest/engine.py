@@ -371,13 +371,12 @@ class BacktestEngine:
 
     def _get_rebalance_dates(self, dates: pd.DatetimeIndex) -> list:
         """获取调仓日期列表。"""
+        dates = pd.DatetimeIndex(dates)
         if self.rebalance_freq == "D":
             return list(dates)
-        series = pd.Series(0, index=dates)
+        series = pd.Series(range(len(dates)), index=dates)
         if self.rebalance_freq == "W":
             grouper = dates.isocalendar().week
-        elif self.rebalance_freq == "M":
-            grouper = dates.to_period("M")
         else:
             grouper = dates.to_period("M")
 
