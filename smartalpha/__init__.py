@@ -15,4 +15,12 @@ __all__ = [
     "backtest",
     "risk",
     "model",
+    "agents",
+    "llm",
+    "memory",
+    "graph",
+    "strategy",
+    "rl",
+    "factor",
+    "ui",
 ]

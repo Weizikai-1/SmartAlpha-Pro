@@ -52,6 +52,8 @@ Thumbs.db
 data/raw/
 # processed: 预处理后的大文件 (factors_neutral.parquet ~5.7MB)
 data/processed/
+# 生成的面板数据
+data/panel_all.parquet
 
 # ── 模型二进制 (太大, 且环境相关) ──
 *.joblib
