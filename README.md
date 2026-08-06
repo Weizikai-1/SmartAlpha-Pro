@@ -1,57 +1,56 @@
 # SmartAlpha Pro
 
-A 股智能选股系统 — 用因子工程找信号，用 LLM Agent 做分析，用 A 股费率做回测。
+A 股多因子量化选股系统 — 因子工程、机器学习、LLM 多 Agent 分析、强化学习仓位管理的全链路投研平台。
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://python.org)
-[![Tests](https://img.shields.io/badge/tests-299%2F299-brightgreen)](test_results.txt)
+[![Tests](https://img.shields.io/badge/tests-544%2F544-brightgreen)](https://github.com/Weizikai-1/SmartAlpha-Pro/actions)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
+[![LightGBM](https://img.shields.io/badge/ML-LightGBM-orange)](https://lightgbm.readthedocs.io/)
+[![LangGraph](https://img.shields.io/badge/Agent-LangGraph-purple)](https://langchain-ai.github.io/langgraph/)
 
 ---
 
-## 这个项目做什么
+## 项目概述
 
-一句话：输入一只 A 股，系统自动完成**数据拉取 → 因子计算 → 模型预测 → 多 Agent 分析 → 回测评估 → 投资报告**的全流程。
+输入一只 A 股代码，系统自动完成 **数据获取 → 因子计算 → 模型预测 → 多 Agent 分析 → 回测评估** 的全流程闭环。
 
-拆开来看三层：
-
-| 层 | 做什么 | 怎么做 |
+| 层 | 职责 | 技术方案 |
 |---|---|---|
-| 因子层 | 把行情数据变成量化信号 | 自研表达式引擎，55 个金融函数，表达式编译执行 |
-| 分析层 | 让 AI 从多角度评估股票 | 4 个 LLM Agent 并行分析，辩论合成结论 |
-| 回测层 | 验证策略能不能赚钱 | A 股真实费率，7 项风控，VaR/压力测试 |
+| **数据层** | 行情/基本面/指数/行业多源数据获取与清洗 | Tushare Pro + AKShare, PyArrow 列式存储 |
+| **因子层** | 92 个量价因子计算 + 表达式引擎 | 自研 LL(1) 编译器, 55 个金融函数, 行业市值中性化 |
+| **模型层** | 截面收益预测 + 集成学习 | LightGBM Walk-Forward, Transformer, Optuna 超参搜索 |
+| **分析层** | 多维度智能分析 + 投资报告 | LangGraph 4-Agent 并行, DeepSeek LLM, ChromaDB 记忆 |
+| **执行层** | A 股真实费率回测 + 风控 + RL 仓位管理 | 7 项风控规则, VaR/CVaR, SAC 强化学习 |
+| **展示层** | Web 交互界面 | Streamlit + Plotly |
 
 ---
 
 ## 架构
 
 ```
-                    ┌─────────────┐
-                    │  Streamlit  │  ← 用户输入股票代码
-                    └──────┬──────┘
-                           │
-              ┌────────────▼────────────┐
-              │    LangGraph 工作流       │
-              │                        │
-              │  Stage1: 数据+因子计算    │
-              │     │                  │
-              │     ├─ 基本面 Agent      │
-              │     ├─ 技术面 Agent      │  ← 4 个 LLM Agent 并行
-              │     ├─ 情绪面 Agent      │
-              │     └─ 舆情面 Agent      │
-              │     │                  │
-              │  Stage3: 辩论+风控审核   │
-              │     │                  │
-              │  Stage4: 生成 Markdown  │
-              │           报告+存储记忆  │
-              └────────────┬────────────┘
-                           │
-         ┌─────────────────┼─────────────────┐
-         │                 │                 │
-   ┌─────▼─────┐   ┌──────▼──────┐   ┌──────▼──────┐
-   │ 因子引擎   │   │  ML 模型    │   │  回测引擎    │
-   │ 表达式解析 │   │ LightGBM    │   │ A股费率/风控 │
-   │ 55个函数   │   │ Transformer │   │ VaR/压力测试 │
-   └───────────┘   └─────────────┘   └─────────────┘
+                         ┌──────────────────┐
+                         │  Streamlit 前端    │  ← 用户交互
+                         └────────┬─────────┘
+                                  │
+                    ┌─────────────▼──────────────┐
+                    │     LangGraph 工作流         │
+                    │                            │
+                    │  基本面 Agent ─┐           │
+                    │  技术面 Agent ─┤           │
+                    │  情绪面 Agent ─┼─ 辩论 → 风控 │  ← 4 Agent 并行
+                    │  舆情面 Agent ─┘           │
+                    │                            │
+                    │  ChromaDB 记忆存储          │
+                    └─────────────┬──────────────┘
+                                  │
+        ┌─────────────────────────┼─────────────────────────┐
+        │                         │                         │
+  ┌─────▼──────┐          ┌──────▼──────┐          ┌───────▼──────┐
+  │ 因子引擎     │          │  ML 模型     │          │  回测引擎      │
+  │ 表达式编译   │          │ LightGBM    │          │  A股费率模型   │
+  │ 55 金融函数  │          │ Transformer │          │  7 项风控      │
+  │ 中性化/Mask │          │ Optuna/SAC  │          │  VaR/压力测试  │
+  └────────────┘          └─────────────┘          └──────────────┘
 ```
 
 ---
@@ -60,43 +59,51 @@ A 股智能选股系统 — 用因子工程找信号，用 LLM Agent 做分析�
 
 ### 因子表达式引擎
 
-不用写代码，用表达式定义因子：
+自定义 DSL 定义复合因子，表达式实时编译执行：
 
 ```python
-# 动量+波动率复合因子
+# 动量 + 低波复合因子
 "RANK(ROC(close, 20)) * 0.6 + RANK(-STD(close, 20)) * 0.4"
 ```
 
-内部走完整编译链路：词法分析 → 语法解析（LL(1)递归下降）→ AST 执行，内置 55 个金融函数（统计、排名、时序、技术指标、截面），支持嵌套和条件计算。
+词法分析 → LL(1) 语法解析 → AST 执行，内置 55 个金融函数，支持嵌套、条件计算、截面/时序操作。
 
-### LLM 多 Agent 分析
+### LLM 多 Agent 智能分析
 
-接入 DeepSeek API，4 个专业 Agent 并行分析同一只股票，从基本面、技术面、情绪面、舆情面各自出报告，然后自动辩论合成一致结论，最后风控 Agent 审核，输出完整的 Markdown 投资报告。
-
-- 基于 LangGraph TypedDict State，fan-out 并行零冲突
-- ChromaDB 存储历史决策和反思，支持记忆检索
-- Mock 模式：没 API Key 也能跑（用模拟数据演示工作流）
+基于 LangGraph 的多 Agent 协作系统：
+- 4 个专业 Agent（基本面/技术面/情绪面/舆情面）并行分析
+- 自动辩论合成一致结论
+- 风控 Agent 终审
+- ChromaDB 持久化记忆，支持历史决策回溯
+- 输出结构化 Markdown 投资报告
+- **Mock 模式**：无 API Key 也能演示完整工作流
 
 ### Walk-Forward 模型训练
 
-滚动窗口训练，严格防止未来信息泄漏：
-- 每期用过去 N 天训练，预测下一期，窗口向前滚动
+严格时序分割，防止未来信息泄漏：
+- 滚动窗口训练：每期 N 天训练 → 下期预测
 - Purge 间隔 5 天，避免标签重叠
-- Optuna 超参搜索 + 时序交叉验证
-- LightGBM + Transformer 双模型 Stacking 集成
+- LightGBM + Transformer Stacking 集成
+- Optuna 超参数自动搜索
 
-### A 股回测
-
-真实费率模型，不是拍脑袋的千分之一：
+### A 股真实费率回测
 
 | 费用项 | 费率 |
 |--------|------|
 | 佣金 | 0.03%（万三） |
 | 印花税 | 0.05%（卖出） |
 | 滑点 | 0.1% |
-| 冲击成本 | 成交额平方根模型 |
 
-7 项风控规则：止损/止盈/仓位/行业集中度/黑名单/因子暴露。VaR/CVaR 支持历史模拟、参数法、蒙特卡洛三种算法。压力测试覆盖 2015 股灾、2020 疫情、2022 调整、2024 闪崩。
+7 项风控：止损/止盈/仓位限制/行业集中度/黑名单/因子暴露/连续亏损熔断。
+VaR/CVaR 支持历史模拟法、参数法、蒙特卡洛三种算法。
+压力测试覆盖 2015 股灾、2020 疫情、2022 调整等极端场景。
+
+### 强化学习仓位管理
+
+基于 SAC（Soft Actor-Critic）的动态仓位优化：
+- PortfolioEnv：11 维状态空间（7 因子 + 3 市场 + 1 持仓）
+- 连续动作空间 [-1, 1] 映射仓位调整比例
+- 奖励函数：收益 + 回撤惩罚
 
 ---
 
@@ -112,25 +119,24 @@ A 股智能选股系统 — 用因子工程找信号，用 LLM Agent 做分析�
 | Calmar 比率 | 0.52 | 0.24 |
 | 风控触发 | — | 256 次 |
 
-> 说明：风控模式下回撤大幅降低（-17.34% → -5.03%），验证了风控系统的有效性。256 次风控事件说明当前止损参数偏敏感，可根据实际风险偏好调整。
+> 风控模式下回撤大幅收窄（-17.34% → -5.03%），验证了风控系统的有效性。
 
 ---
 
 ## 快速开始
 
 ```bash
-git clone https://github.com/Weizikai-1/SmartAlpha-Pro
+git clone https://github.com/Weizikai-1/SmartAlpha-Pro.git
 cd SmartAlpha-Pro
-pip install -r requirements.txt
+pip install -e .
 
-# 配置 API Key
+# 配置 API Key（可选，Mock 模式无需）
 cp .env.example .env
-# 编辑 .env → 填入 Tushare Token + DeepSeek API Key
 
-# 运行测试（无需 API Key）
-python -m pytest tests/ -v --tb=short
+# 运行测试
+pytest tests/ -q --ignore=tests/test_memory.py
 
-# 启动界面
+# 启动 Web 界面
 streamlit run smartalpha/ui/app.py
 ```
 
@@ -139,54 +145,71 @@ streamlit run smartalpha/ui/app.py
 ## 项目结构
 
 ```
-smartalpha/
-├── core/          # 因子表达式引擎（词法→语法→AST→执行）
-├── graph/         # LangGraph 工作流 + TypedDict State
-├── agents/        # 4 个专业分析 Agent
-├── llm/           # DeepSeek API 封装（OpenAI 兼容）
-├── memory/        # ChromaDB 向量记忆
-├── model/         # LightGBM / Transformer / Optuna / Stacking
-├── backtest/      # A 股回测引擎（费率+风控+VaR）
-├── risk/          # 7 项风控规则 + 压力测试
-├── factor/        # 因子工程（中性化/IC筛选/Mask）
-├── data/          # Tushare + AKShare 数据获取
-├── ui/            # Streamlit 交互界面
-├── rl/            # SAC 强化学习（预留）
-├── eval/          # 因子评估
-├── registry/      # 因子注册中心
-├── storage/       # 列式存储（LRU 缓存）
-├── strategy/      # 多策略对比
-└── pipeline.py    # 全流程管道
+SmartAlpha-Pro/
+├── smartalpha/
+│   ├── config.py         # 统一配置管理（路径/常量/API密钥）
+│   ├── core/             # 因子表达式引擎（词法→语法→AST→执行）
+│   ├── factor/           # 因子工程（中性化/Mask/IC筛选/相关性去重）
+│   ├── model/            # ML 模型（LightGBM/Transformer/Optuna/Stacking）
+│   ├── rl/               # SAC 强化学习仓位管理
+│   ├── backtest/         # A 股回测引擎（费率+风控+VaR）
+│   ├── risk/             # 7 项风控规则 + 压力测试
+│   ├── graph/            # LangGraph 工作流 + State 管理
+│   ├── agents/           # 4 个专业分析 Agent + 辩论
+│   ├── llm/              # DeepSeek API 封装
+│   ├── memory/           # ChromaDB 向量记忆
+│   ├── data/             # 多源数据获取（Tushare/AKShare）
+│   ├── ui/               # Streamlit Web 界面
+│   ├── registry/         # 因子注册中心
+│   ├── storage/          # 列式存储 + LRU 缓存
+│   └── pipeline.py       # 全流程管道
+├── scripts/              # 工具脚本
+│   ├── download_data.py  # 数据下载
+│   ├── rl_train.py       # RL 训练
+│   └── e2e_test.py       # 端到端验证
+├── tests/                # 30 个测试文件，544 个测试用例
+├── pyproject.toml        # 项目配置
+├── requirements.txt      # 依赖清单
+├── Dockerfile            # Docker 部署
+└── .github/workflows/    # CI 流水线
 ```
 
 ---
 
 ## 测试
 
-```
-tests/test_lexer.py            78 passed    词法分析
-tests/test_executor.py         42 passed    AST 执行
-tests/test_functions.py        68 passed    55 函数库
-tests/test_factor.py           24 passed    因子工程
-tests/test_model.py            11 passed    ML 模型
-tests/test_backtest.py         23 passed    回测引擎
-tests/test_cache.py            36 passed    LRU 缓存
-tests/test_integration.py      17 passed    集成测试
-─────────────────────────────────────────────────
-                              299 passed ✓
+| 模块 | 用例 | 覆盖范围 |
+|------|------|---------|
+| 词法分析器 | 78 | Token 解析全覆盖 |
+| AST 执行器 | 42 | 表达式执行 + 边界 |
+| 函数库 | 68 | 55 个金融函数 |
+| 因子工程 | 24 | 中性化/IC/相关性 |
+| ML 模型 | 11 | LightGBM + WalkForward |
+| 回测引擎 | 23 | 费率/风控/净值 |
+| 缓存/存储 | 36 | LRU + 列式存储 |
+| 集成测试 | 17 | 跨模块协作 |
+| Mock 训练 | 15 | 模拟数据全链路 |
+| **合计** | **544** | — |
+
+```bash
+pytest tests/ -q               # 完整测试
+pytest tests/ -q --tb=short    # 简洁输出
 ```
 
 ---
 
 ## 技术栈
 
-| 层 | 技术 |
+| 类别 | 技术 |
 |------|------|
-| 数据 | Pandas, NumPy, PyArrow, Tushare Pro, AKShare |
-| ML | LightGBM, Scikit-learn, Optuna |
-| DL | PyTorch (Transformer) |
-| LLM | DeepSeek API, LangGraph, ChromaDB |
-| 前端 | Streamlit, Plotly |
+| 数据处理 | Pandas, NumPy, PyArrow (Parquet) |
+| 数据源 | Tushare Pro, AKShare |
+| 机器学习 | LightGBM, Scikit-learn, Optuna |
+| 深度学习 | PyTorch (Transformer) |
+| 强化学习 | Stable-Baselines3 (SAC) |
+| LLM/Agent | LangGraph, LangChain, DeepSeek API, ChromaDB |
+| Web 界面 | Streamlit, Plotly |
+| 工程化 | pytest, Config 统一管理, CI (GitHub Actions) |
 | 部署 | Docker |
 
 ---
@@ -197,4 +220,4 @@ MIT
 
 ---
 
-**免责声明**: 本项目仅供学习和研究使用，不构成任何投资建议。
+**免责声明**: 本项目仅供学习和研究使用，不构成任何投资建议。投资有风险，入市需谨慎。

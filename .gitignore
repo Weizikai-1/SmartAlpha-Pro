@@ -48,6 +48,7 @@ Thumbs.db
 *.bak
 
 # ── 大型数据文件 (用户自行下载) ──
+data/cache/
 # raw: 原始API下载数据
 data/raw/
 # processed: 预处理后的大文件 (factors_neutral.parquet ~5.7MB)
