@@ -181,9 +181,121 @@ class LightGBMPredictor:
             raise RuntimeError("模型未训练，请先调用 train_predict()")
         return self._model.predict(X, num_iteration=self._model.best_iteration)
 
+    # ------------------------------------------------------------------
+    # 便捷方法: 兼容 ensemble / auto_retrain / tuner
+    # ------------------------------------------------------------------
+
+    def prepare_data(self, selected_factors=None):
+        """加载因子数据，计算前瞻收益标签，返回 (X, y, dates, feature_cols)。
+
+        使用 daily_masked.parquet 计算 fwd_ret_5d 作为标签。
+
+        Args:
+            selected_factors: 因子列名列表，None 则自动排除元数据列。
+
+        Returns:
+            (X: DataFrame, y: Series, dates: Series, feature_cols: list)
+        """
+        import pandas as pd
+        from smartalpha.config import PROCESSED_DIR
+
+        def _read(p):
+            try:
+                return pd.read_parquet(p)
+            except OSError:
+                return pd.read_parquet(p, engine="fastparquet")
+
+        factors = _read(PROCESSED_DIR / "factors_neutral.parquet")
+        daily = _read(PROCESSED_DIR / "daily_masked.parquet")
+
+        # 计算前瞻收益标签
+        daily["trade_date"] = pd.to_datetime(daily["trade_date"], format="%Y%m%d")
+        daily = daily.sort_values(["ts_code", "trade_date"])
+        daily["fwd_ret_5d"] = daily.groupby("ts_code")["close"].pct_change(5).shift(-5)
+
+        factors["trade_date"] = pd.to_datetime(factors["trade_date"], format="%Y%m%d")
+        factors = factors.merge(
+            daily[["ts_code", "trade_date", "fwd_ret_5d"]],
+            on=["ts_code", "trade_date"], how="inner"
+        )
+        factors = factors.dropna(subset=["fwd_ret_5d"])
+
+        exclude = {"ts_code", "trade_date", "industry", "circ_mv", "log_mv", "fwd_ret_5d"}
+        if selected_factors is None:
+            selected_factors = [c for c in factors.columns if c not in exclude]
+
+        X = factors[list(selected_factors)]
+        y = factors["fwd_ret_5d"]
+        dates = factors["trade_date"]
+
+        return X, y, dates, list(selected_factors)
+
+    def train(self, X, y, dates, test_ratio=0.2):
+        """快速训练：时序分割后调用 train_predict。
+
+        Args:
+            X: 特征矩阵 (DataFrame 或 ndarray)。
+            y: 标签序列。
+            dates: 每行对应日期。
+            test_ratio: 验证集比例 (0~1)。
+
+        Side-effect: 设置 self.model 指向已训练模型。
+        """
+        import pandas as pd
+        dates_dt = pd.to_datetime(dates)
+        unique_dates = sorted(dates_dt.unique())
+        split_idx = max(1, min(int(len(unique_dates) * (1 - test_ratio)),
+                               len(unique_dates) - 1))
+        split_date = unique_dates[split_idx]
+
+        # 确保 X 是 DataFrame
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X, columns=[f"f{i}" for i in range(X.shape[1])])
+
+        self.train_predict(X, y, dates, train_end=split_date.strftime("%Y%m%d"))
+        self.model = self._model
+
+    def run(self, selected_factors=None):
+        """完整流程：准备数据 → 训练 → 评估，返回结果字典。
+
+        Args:
+            selected_factors: 因子列名列表。
+
+        Returns:
+            {"rmse": float, "ic": float} 或 None。
+        """
+        import numpy as np
+        import pandas as pd
+
+        X, y, dates, _ = self.prepare_data(selected_factors=selected_factors)
+
+        dates_dt = pd.to_datetime(dates)
+        unique_dates = sorted(dates_dt.unique())
+        split_idx = max(1, len(unique_dates) * 2 // 3)
+        train_end = unique_dates[min(split_idx, len(unique_dates) - 1)]
+
+        result = self.train_predict(X, y, dates, train_end=train_end.strftime("%Y%m%d"))
+        self.model = self._model
+
+        predictions = result.predictions
+        y_val = y.loc[predictions.index]
+        ic = predictions.corr(y_val) if len(predictions) > 1 else 0.0
+        rmse = np.sqrt(np.mean((predictions.values - y_val.values) ** 2))
+
+        return {"rmse": float(rmse), "ic": float(ic)}
+
     @property
     def is_trained(self) -> bool:
         return self._model is not None
+
+    @property
+    def model(self):
+        """已训练模型（兼容 ensemble 的 self.lgbm_model = trainer.model）。"""
+        return self._model
+
+    @model.setter
+    def model(self, value):
+        self._model = value
 
 
 # 别名: 兼容 ensemble/tuner/auto_retrain 中的 LGBMTrainer 引用
