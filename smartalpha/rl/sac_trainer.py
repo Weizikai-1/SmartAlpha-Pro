@@ -6,12 +6,9 @@ import numpy as np
 import pandas as pd
 
 from smartalpha.rl.env import PortfolioEnv, HAS_GYM
+from smartalpha.config import MODEL_SAVE_DIR as MODEL_DIR
 
 logger = logging.getLogger(__name__)
-
-# 模型存储路径
-MODEL_DIR = Path(__file__).parent.parent / "model" / "saved"
-MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 if HAS_GYM:
     from stable_baselines3 import SAC

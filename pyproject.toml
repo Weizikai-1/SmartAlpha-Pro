@@ -34,6 +34,11 @@ dependencies = [
     "langchain-core>=0.3.0",
     "chromadb>=0.5.0",
     "openai>=1.50.0",
+    "lightgbm>=4.0.0",
+    "torch>=2.0.0",
+    "gymnasium>=1.0.0",
+    "stable-baselines3>=2.0.0",
+    "fastparquet>=2024.0.0",
 ]
 
 [project.optional-dependencies]

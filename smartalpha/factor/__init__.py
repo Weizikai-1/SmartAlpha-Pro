@@ -8,4 +8,21 @@
 
 from .neutralize import neutralize, industry_neutralize, market_cap_neutralize
 from .mask import build_limit_mask, apply_mask
-from .selector import filter_by_ic, remove_correlated, select_factors
+from .selector import (
+    filter_by_ic,
+    remove_correlated,
+    cross_sectional_corr_filter,
+    select_factors,
+)
+
+__all__ = [
+    "neutralize",
+    "industry_neutralize",
+    "market_cap_neutralize",
+    "build_limit_mask",
+    "apply_mask",
+    "filter_by_ic",
+    "remove_correlated",
+    "cross_sectional_corr_filter",
+    "select_factors",
+]

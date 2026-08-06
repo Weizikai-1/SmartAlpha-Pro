@@ -6,12 +6,9 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger(__name__)
+from smartalpha.config import MODEL_SAVE_DIR as MODEL_DIR, DATA_DIR, PROCESSED_DIR, RESULTS_DIR
 
-# 路径常量
-DATA_DIR = Path(__file__).parent.parent.parent / "data"
-MODEL_DIR = Path(__file__).parent / "saved"
-MODEL_DIR.mkdir(exist_ok=True)
+logger = logging.getLogger(__name__)
 
 
 class RetrainTrigger:
@@ -98,7 +95,7 @@ class RetrainTrigger:
                 with open(path) as f:
                     return json.load(f).get("baseline_ic")
             # 尝试从特征重要性目录找历史记录
-            result_path = DATA_DIR / "results" / "backtest_result.parquet"
+            result_path = RESULTS_DIR / "backtest_result.parquet"
             if result_path.exists():
                 # 如果没有基准，用当前回测的Sharpe作为代理
                 return None
@@ -121,7 +118,7 @@ class RetrainTrigger:
                 baseline = pd.read_parquet(baseline_path)
             else:
                 # 首次运行时用前半段数据作baseline并保存
-                full = pd.read_parquet(DATA_DIR / "processed" / "factors_neutral.parquet")
+                full = pd.read_parquet(PROCESSED_DIR / "factors_neutral.parquet")
                 full = full.sort_values("trade_date")
                 baseline = full.head(len(full) // 2)
                 baseline.to_parquet(baseline_path)
@@ -171,7 +168,7 @@ class RetrainTrigger:
         # 当前直接加载已有 parquet 数据
         try:
             import pyarrow.parquet as pq
-            _ = pq.read_table(DATA_DIR / "processed" / "factors_neutral.parquet")
+            _ = pq.read_table(PROCESSED_DIR / "factors_neutral.parquet")
         except Exception:
             logger.warning("无法加载因子数据，重训可能失败")
 
@@ -182,7 +179,7 @@ class RetrainTrigger:
         selected = []
         ic_results = {}
         try:
-            factors = pd.read_parquet(DATA_DIR / "processed" / "factors_neutral.parquet")
+            factors = pd.read_parquet(PROCESSED_DIR / "factors_neutral.parquet")
             factor_cols = [c for c in factors.columns if c not in {"ts_code","trade_date","industry","circ_mv","log_mv","fwd_ret_5d"}]
             selected = factor_cols[:12]
             ic_results = {"status": "loaded_from_cache", "n_factors": len(selected)}
@@ -238,7 +235,7 @@ class RetrainTrigger:
         # 加载最近特征（按日期排序后取最新）
         current_features = None
         try:
-            fac = pd.read_parquet(DATA_DIR / "processed" / "factors_neutral.parquet")
+            fac = pd.read_parquet(PROCESSED_DIR / "factors_neutral.parquet")
             fac = fac.sort_values("trade_date")
             feature_cols = [c for c in fac.columns if c not in ["ts_code", "trade_date", "industry", "circ_mv", "log_mv"]]
             current_features = fac[feature_cols].tail(1000)
@@ -261,9 +258,9 @@ class RetrainTrigger:
             model = joblib.load(model_path)
 
             # 加载最新因子数据
-            factors = pd.read_parquet(DATA_DIR / "processed" / "factors_neutral.parquet")
+            factors = pd.read_parquet(PROCESSED_DIR / "factors_neutral.parquet")
             factors["trade_date"] = pd.to_datetime(factors["trade_date"], format="%Y%m%d")
-            daily = pd.read_parquet(DATA_DIR / "processed" / "daily_masked.parquet")
+            daily = pd.read_parquet(PROCESSED_DIR / "daily_masked.parquet")
             daily["trade_date"] = pd.to_datetime(daily["trade_date"], format="%Y%m%d")
 
             # 计算前瞻收益

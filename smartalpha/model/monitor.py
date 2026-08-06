@@ -5,11 +5,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger(__name__)
+from smartalpha.config import MODEL_SAVE_DIR as MODEL_DIR, DATA_DIR, PROCESSED_DIR, RESULTS_DIR
 
-# 数据路径
-DATA_DIR = Path(__file__).parent.parent.parent / "data"
-MODEL_DIR = Path(__file__).parent / "saved"
+logger = logging.getLogger(__name__)
 
 
 class ModelMonitor:
@@ -88,7 +86,7 @@ class ModelMonitor:
 
         # 加载回测结果检查绩效
         try:
-            result = pd.read_parquet(DATA_DIR / "results" / "backtest_result.parquet")
+            result = pd.read_parquet(RESULTS_DIR / "backtest_result.parquet")
             returns = result["daily_return"].dropna()
             if len(returns) > 20:
                 volatility = returns.std() * np.sqrt(252)
@@ -102,7 +100,7 @@ class ModelMonitor:
 
         # 加载因子数据检查漂移
         try:
-            factors = pd.read_parquet(DATA_DIR / "processed" / "factors_neutral.parquet")
+            factors = pd.read_parquet(PROCESSED_DIR / "factors_neutral.parquet")
             factor_cols = [c for c in factors.columns if c not in ["ts_code", "trade_date", "industry", "circ_mv", "log_mv"]]
             recent = factors[factor_cols].tail(100)
             baseline = factors[factor_cols].head(100)

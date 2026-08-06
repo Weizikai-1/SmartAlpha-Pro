@@ -21,10 +21,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-# ChromaDB 默认持久化目录
-_DEFAULT_PERSIST_DIR = os.path.join(
-    os.path.expanduser("~"), ".smartalpha", "chroma"
-)
+from smartalpha.config import CHROMA_PERSIST_DIR as _DEFAULT_PERSIST_DIR
 
 
 class ChromaMemoryStore:

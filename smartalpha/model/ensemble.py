@@ -8,11 +8,9 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_squared_error
 
-logger = logging.getLogger(__name__)
+from smartalpha.config import MODEL_SAVE_DIR as MODEL_DIR, PROCESSED_DIR, DATA_DIR
 
-# 模型存储路径 (兼容旧 config.MODEL_DIR)
-MODEL_DIR = Path(__file__).parent / "saved"
-MODEL_DIR.mkdir(exist_ok=True)
+logger = logging.getLogger(__name__)
 
 try:
     import torch
@@ -128,7 +126,7 @@ class EnsembleModel:
     def generate_ensemble_predictions(self, factor_file="factors_neutral.parquet"):
         """生成集成预测评分：优先使用blend，回退到单模型"""
         try:
-            factors = pd.read_parquet(MODEL_DIR.parent.parent.parent / "data" / "processed" / factor_file)
+            factors = pd.read_parquet(PROCESSED_DIR / factor_file)
         except FileNotFoundError:
             logger.error("缺少因子数据")
             return None
@@ -153,6 +151,6 @@ class EnsembleModel:
             return None
 
         result = factors[["ts_code", "trade_date", "predict_score"]].copy()
-        result.to_parquet(MODEL_DIR.parent.parent.parent / "data" / "processed" / "model_predictions.parquet")
+        result.to_parquet(PROCESSED_DIR / "model_predictions.parquet")
         logger.info(f"集成预测评分已保存: {len(result)} 条")
         return result

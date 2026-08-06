@@ -5,11 +5,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger(__name__)
+from smartalpha.config import MODEL_SAVE_DIR as MODEL_DIR
 
-# 模型存储路径
-MODEL_DIR = Path(__file__).parent / "saved"
-MODEL_DIR.mkdir(exist_ok=True)
+logger = logging.getLogger(__name__)
 
 try:
     import torch

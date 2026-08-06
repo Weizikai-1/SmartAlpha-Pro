@@ -5,10 +5,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger(__name__)
+from smartalpha.config import DATA_DIR, PROCESSED_DIR
 
-# 数据路径
-DATA_DIR = Path(__file__).parent.parent.parent / "data"
+logger = logging.getLogger(__name__)
 
 # 兼容处理：尝试导入gymnasium
 try:
@@ -26,6 +25,15 @@ except ImportError:
         class Box:
             def __init__(self, *args, **kwargs):
                 pass
+
+
+def _safe_read_parquet(path):
+    """兼容 pyarrow 版本差异的安全 parquet 读取"""
+    try:
+        return pd.read_parquet(path)
+    except OSError:
+        logger.debug("pyarrow 读取失败，尝试 fastparquet 引擎")
+        return pd.read_parquet(path, engine="fastparquet")
 
 
 class PortfolioEnv(gym.Env if HAS_GYM else object):
@@ -50,20 +58,20 @@ class PortfolioEnv(gym.Env if HAS_GYM else object):
         self.transaction_cost = transaction_cost
 
         # 加载数据
-        self.daily = pd.read_parquet(DATA_DIR / "processed" / "daily_masked.parquet")
+        self.daily = _safe_read_parquet(PROCESSED_DIR / "daily_masked.parquet")
         self.daily["trade_date"] = pd.to_datetime(self.daily["trade_date"], format="%Y%m%d")
         self.daily = self.daily.sort_values(["ts_code", "trade_date"])
         self.daily["ret"] = self.daily.groupby("ts_code")["close"].pct_change()
 
         try:
-            self.factors = pd.read_parquet(DATA_DIR / "processed" / factor_file)
+            self.factors = _safe_read_parquet(PROCESSED_DIR / factor_file)
             self.factors["trade_date"] = pd.to_datetime(self.factors["trade_date"], format="%Y%m%d")
         except FileNotFoundError:
             logger.error("缺少因子数据")
             raise
 
         try:
-            self.preds = pd.read_parquet(DATA_DIR / "processed" / pred_file)
+            self.preds = _safe_read_parquet(PROCESSED_DIR / pred_file)
             self.preds["trade_date"] = pd.to_datetime(self.preds["trade_date"], format="%Y%m%d")
         except FileNotFoundError:
             self.preds = None

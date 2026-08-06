@@ -23,4 +23,5 @@ __all__ = [
     "rl",
     "factor",
     "ui",
+    "config",
 ]
